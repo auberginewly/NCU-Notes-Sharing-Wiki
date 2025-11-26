@@ -85,14 +85,36 @@ jobs:
           port: ${{ steps.set-vars.outputs.server_port }}
           script: |
             DEPLOY_PATH="${SERVER_DEPLOY_PATH:-/www/wwwroot/ncu-notes-sharing-wiki}"
-            # 创建部署目录（如果不存在）
-            mkdir -p "$DEPLOY_PATH"
-            # 移动文件从 /tmp/dist 到部署目录
-            rm -rf "$DEPLOY_PATH"/*
-            cp -r /tmp/dist/* "$DEPLOY_PATH"/
-            rm -rf /tmp/dist
-            # 设置文件权限（宝塔默认使用 www:www）
-            chown -R www:www "$DEPLOY_PATH"
-            chmod -R 755 "$DEPLOY_PATH"
-            echo "✅ Deployment completed!"
+            echo "Deploy path: $DEPLOY_PATH"
+            
+            # 检查 /tmp/dist 是否存在
+            if [ -d "/tmp/dist" ]; then
+              echo "Found /tmp/dist directory"
+              ls -la /tmp/dist | head -10
+              
+              # 创建部署目录（如果不存在）
+              mkdir -p "$DEPLOY_PATH"
+              
+              # 清空部署目录（保留隐藏文件）
+              find "$DEPLOY_PATH" -mindepth 1 -maxdepth 1 ! -name '.*' -exec rm -rf {} +
+              
+              # 复制文件从 /tmp/dist 到部署目录
+              cp -r /tmp/dist/* "$DEPLOY_PATH"/
+              
+              # 清理临时文件
+              rm -rf /tmp/dist
+              
+              # 设置文件权限（宝塔默认使用 www:www）
+              chown -R www:www "$DEPLOY_PATH"
+              chmod -R 755 "$DEPLOY_PATH"
+              
+              echo "Files in deploy directory:"
+              ls -la "$DEPLOY_PATH" | head -10
+              echo "✅ Deployment completed!"
+            else
+              echo "❌ Error: /tmp/dist directory not found!"
+              echo "Contents of /tmp:"
+              ls -la /tmp | grep -E "dist|ncu"
+              exit 1
+            fi
 
