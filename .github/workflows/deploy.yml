@@ -73,10 +73,25 @@ jobs:
           # 部署路径：可以通过 Secret 配置，默认为 /ncu-notes-sharing-wiki
           DEPLOY_PATH=${TCB_DEPLOY_PATH:-/ncu-notes-sharing-wiki}
           echo "Deploying to path: $DEPLOY_PATH"
-          tcb hosting deploy ./docs/.vitepress/dist $DEPLOY_PATH -e ${{ secrets.TCB_ENV_ID }}
+          
+          # 重试机制：最多重试 3 次
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if tcb hosting deploy ./docs/.vitepress/dist $DEPLOY_PATH -e ${{ secrets.TCB_ENV_ID }}; then
+              echo "✅ Deployment successful!"
+              exit 0
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ Deployment failed, retrying... ($RETRY_COUNT/$MAX_RETRIES)"
+                sleep 5
+              else
+                echo "❌ Deployment failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
       
-      - name: Deployment success
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo "Your site should be available at the CloudBase static hosting URL."
 
