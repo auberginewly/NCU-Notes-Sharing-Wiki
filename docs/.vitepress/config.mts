@@ -2,18 +2,28 @@ import { defineConfig } from 'vitepress'
 
 // 获取部署路径，默认为 /ncu-notes-sharing-wiki/
 const basePath = process.env.VITEPRESS_BASE || '/ncu-notes-sharing-wiki/'
+// 确保 basePath 格式正确（以 / 开头和结尾，去除多余的斜杠）
+const normalizedBase = basePath.startsWith('/') ? basePath : `/${basePath}`
+const finalBase = normalizedBase.endsWith('/') ? normalizedBase : `${normalizedBase}/`
+
+// 辅助函数：生成带 base 的路径
+const withBase = (path: string) => {
+  // 如果路径以 / 开头，去掉它，然后加上 base
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path
+  return `${finalBase}${cleanPath}`
+}
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: basePath,
-  title: "NCU Notes Sharing Wiki",
-  description: "By auberginewly",
+  base: finalBase,
+  title: "NCU Notes Sharing Wiki 资料分享",
+  description: "By auberginewly 整理了一些我在 NCU 上课用到的教材、笔记和真题，希望能帮大家少走弯路。",
   head: [
-    ['link', { rel: 'icon', href: `${basePath}i.png` }]
+    ['link', { rel: 'icon', href: withBase('i.png') }]
   ],
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    logo: `${basePath}i.png`,
+    logo: withBase('i.png'),
     nav: [
       { text: '主页', link: '/' },
       {
