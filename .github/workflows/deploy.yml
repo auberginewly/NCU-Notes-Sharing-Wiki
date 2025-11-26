@@ -1,4 +1,4 @@
-name: Deploy to Tencent CloudBase
+name: Deploy to Baota Server
 
 on:
   push:
@@ -9,32 +9,32 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy VitePress to CloudBase
-    
+    name: Deploy VitePress to Baota Server
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 10
-      
+
       - name: Install dependencies
         run: pnpm install
-      
+
       - name: Build VitePress
         env:
-          TCB_DEPLOY_PATH: ${{ secrets.TCB_DEPLOY_PATH }}
+          VITEPRESS_BASE: ${{ secrets.VITEPRESS_BASE || '/' }}
         run: |
-          # 设置 VitePress base 路径，与部署路径保持一致
-          DEPLOY_PATH=${TCB_DEPLOY_PATH:-/ncu-notes-sharing-wiki}
-          # 确保路径以 / 开头和结尾
+          # 设置 VitePress base 路径
+          DEPLOY_PATH=${VITEPRESS_BASE:-/}
+          # 确保路径格式正确
           if [[ ! "$DEPLOY_PATH" =~ ^/ ]]; then
             DEPLOY_PATH="/$DEPLOY_PATH"
           fi
@@ -44,7 +44,7 @@ jobs:
           export VITEPRESS_BASE="$DEPLOY_PATH"
           echo "Building with base path: $VITEPRESS_BASE"
           pnpm docs:build
-      
+
       - name: Verify build output
         run: |
           if [ ! -d "docs/.vitepress/dist" ]; then
@@ -52,46 +52,36 @@ jobs:
             exit 1
           fi
           echo "Build output verified: $(du -sh docs/.vitepress/dist)"
-      
-      - name: List build output files
+
+      - name: Create deployment archive
         run: |
-          echo "Build output structure:"
-          find docs/.vitepress/dist -type f | head -20
-          echo "Total files: $(find docs/.vitepress/dist -type f | wc -l)"
-      
-      - name: Install CloudBase CLI
-        run: npm install -g @cloudbase/cli
-      
-      - name: Login to CloudBase
-        run: |
-          tcb login --apiKeyId ${{ secrets.TCB_SECRET_ID }} --apiKey ${{ secrets.TCB_SECRET_KEY }}
-      
-      - name: Deploy to CloudBase Static Hosting
-        env:
-          TCB_DEPLOY_PATH: ${{ secrets.TCB_DEPLOY_PATH }}
-        run: |
-          # 部署路径：可以通过 Secret 配置，默认为 /ncu-notes-sharing-wiki
-          DEPLOY_PATH=${TCB_DEPLOY_PATH:-/ncu-notes-sharing-wiki}
-          echo "Deploying to path: $DEPLOY_PATH"
-          
-          # 重试机制：最多重试 3 次
-          MAX_RETRIES=3
-          RETRY_COUNT=0
-          
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if tcb hosting deploy ./docs/.vitepress/dist $DEPLOY_PATH -e ${{ secrets.TCB_ENV_ID }}; then
-              echo "✅ Deployment successful!"
-              exit 0
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️ Deployment failed, retrying... ($RETRY_COUNT/$MAX_RETRIES)"
-                sleep 5
-              else
-                echo "❌ Deployment failed after $MAX_RETRIES attempts"
-                exit 1
-              fi
-            fi
-          done
-      
+          cd docs/.vitepress/dist
+          tar -czf ../../../../deploy.tar.gz *
+          cd ../../../..
+
+      - name: Deploy to server via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "deploy.tar.gz"
+          target: ${{ secrets.SERVER_DEPLOY_PATH || "/www/wwwroot/ncu-notes-sharing-wiki" }}
+
+      - name: Extract and deploy files
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            cd ${{ secrets.SERVER_DEPLOY_PATH || "/www/wwwroot/ncu-notes-sharing-wiki" }}
+            tar -xzf deploy.tar.gz
+            rm -f deploy.tar.gz
+            # 设置文件权限（宝塔默认使用 www:www）
+            chown -R www:www .
+            chmod -R 755 .
+            echo "✅ Deployment completed!"
 
