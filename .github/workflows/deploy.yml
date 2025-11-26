@@ -39,19 +39,27 @@ jobs:
           fi
           echo "Build output verified: $(du -sh docs/.vitepress/dist)"
       
+      - name: List build output files
+        run: |
+          echo "Build output structure:"
+          find docs/.vitepress/dist -type f | head -20
+          echo "Total files: $(find docs/.vitepress/dist -type f | wc -l)"
+      
       - name: Deploy to Tencent CloudBase
         id: deploy
         uses: TencentCloudBase/cloudbase-action@v2.0.1
-        continue-on-error: true
         with:
           secretId: ${{ secrets.CLOUDBASE_SECRET_ID }}
           secretKey: ${{ secrets.CLOUDBASE_SECRET_KEY }}
           envId: ${{ secrets.CLOUDBASE_ENV_ID }}
       
-      - name: Check deployment status
-        if: steps.deploy.outcome == 'failure'
+      - name: Deployment result
+        if: always()
         run: |
-          echo "Deployment step completed with errors, but this may be due to CloudBase CLI font file issue."
-          echo "Please check CloudBase console to verify if deployment was successful."
-          echo "The font file error (Slant.flf) is a known CloudBase CLI issue and usually doesn't prevent deployment."
+          if [ "${{ steps.deploy.outcome }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed. Check logs above for details."
+            echo "Note: Font file errors (Slant.flf) are usually harmless."
+          fi
 
