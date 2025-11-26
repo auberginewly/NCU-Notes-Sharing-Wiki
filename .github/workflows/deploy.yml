@@ -52,12 +52,7 @@ jobs:
             exit 1
           fi
           echo "Build output verified: $(du -sh docs/.vitepress/dist)"
-
-      - name: Create deployment archive
-        run: |
-          cd docs/.vitepress/dist
-          tar -czf ../../../../deploy.tar.gz *
-          cd ../../../..
+          ls -la docs/.vitepress/dist | head -10
 
       - name: Set deployment variables
         id: set-vars
@@ -75,10 +70,11 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ steps.set-vars.outputs.server_port }}
-          source: "deploy.tar.gz"
-          target: /www/wwwroot/ncu-notes-sharing-wiki
+          source: "docs/.vitepress/dist"
+          target: /tmp
+          rm: true
 
-      - name: Extract and deploy files
+      - name: Move files and set permissions
         env:
           SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH }}
         uses: appleboy/ssh-action@v1.0.3
@@ -89,11 +85,14 @@ jobs:
           port: ${{ steps.set-vars.outputs.server_port }}
           script: |
             DEPLOY_PATH="${SERVER_DEPLOY_PATH:-/www/wwwroot/ncu-notes-sharing-wiki}"
-            cd "$DEPLOY_PATH"
-            tar -xzf deploy.tar.gz
-            rm -f deploy.tar.gz
+            # 创建部署目录（如果不存在）
+            mkdir -p "$DEPLOY_PATH"
+            # 移动文件从 /tmp/dist 到部署目录
+            rm -rf "$DEPLOY_PATH"/*
+            cp -r /tmp/dist/* "$DEPLOY_PATH"/
+            rm -rf /tmp/dist
             # 设置文件权限（宝塔默认使用 www:www）
-            chown -R www:www .
-            chmod -R 755 .
+            chown -R www:www "$DEPLOY_PATH"
+            chmod -R 755 "$DEPLOY_PATH"
             echo "✅ Deployment completed!"
 
