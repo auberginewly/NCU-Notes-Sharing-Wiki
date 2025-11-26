@@ -59,25 +59,37 @@ jobs:
           tar -czf ../../../../deploy.tar.gz *
           cd ../../../..
 
+      - name: Set deployment variables
+        id: set-vars
+        run: |
+          SERVER_PORT="${{ secrets.SERVER_PORT }}"
+          if [ -z "$SERVER_PORT" ]; then
+            SERVER_PORT="3333"
+          fi
+          echo "server_port=$SERVER_PORT" >> $GITHUB_OUTPUT
+
       - name: Deploy to server via SSH
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
+          port: ${{ steps.set-vars.outputs.server_port }}
           source: "deploy.tar.gz"
-          target: ${{ secrets.SERVER_DEPLOY_PATH || "/www/wwwroot/ncu-notes-sharing-wiki" }}
+          target: /www/wwwroot/ncu-notes-sharing-wiki
 
       - name: Extract and deploy files
+        env:
+          SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
+          port: ${{ steps.set-vars.outputs.server_port }}
           script: |
-            cd ${{ secrets.SERVER_DEPLOY_PATH || "/www/wwwroot/ncu-notes-sharing-wiki" }}
+            DEPLOY_PATH="${SERVER_DEPLOY_PATH:-/www/wwwroot/ncu-notes-sharing-wiki}"
+            cd "$DEPLOY_PATH"
             tar -xzf deploy.tar.gz
             rm -f deploy.tar.gz
             # 设置文件权限（宝塔默认使用 www:www）
