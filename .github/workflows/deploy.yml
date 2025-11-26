@@ -87,10 +87,26 @@ jobs:
             DEPLOY_PATH="${SERVER_DEPLOY_PATH:-/www/wwwroot/ncu-notes-sharing-wiki}"
             echo "Deploy path: $DEPLOY_PATH"
             
-            # 检查 /tmp/dist 是否存在
+            # 查找上传的文件位置
+            echo "Checking /tmp directory:"
+            ls -la /tmp | head -20
+            
+            # 尝试多个可能的路径
+            SOURCE_DIR=""
             if [ -d "/tmp/dist" ]; then
-              echo "Found /tmp/dist directory"
-              ls -la /tmp/dist | head -10
+              SOURCE_DIR="/tmp/dist"
+            elif [ -d "/tmp/docs/.vitepress/dist" ]; then
+              SOURCE_DIR="/tmp/docs/.vitepress/dist"
+            elif [ -d "/tmp/.vitepress/dist" ]; then
+              SOURCE_DIR="/tmp/.vitepress/dist"
+            else
+              # 查找包含 index.html 的目录
+              SOURCE_DIR=$(find /tmp -name "index.html" -type f 2>/dev/null | head -1 | xargs dirname)
+            fi
+            
+            if [ -n "$SOURCE_DIR" ] && [ -d "$SOURCE_DIR" ]; then
+              echo "Found source directory: $SOURCE_DIR"
+              ls -la "$SOURCE_DIR" | head -10
               
               # 创建部署目录（如果不存在）
               mkdir -p "$DEPLOY_PATH"
@@ -98,11 +114,11 @@ jobs:
               # 清空部署目录（保留隐藏文件）
               find "$DEPLOY_PATH" -mindepth 1 -maxdepth 1 ! -name '.*' -exec rm -rf {} +
               
-              # 复制文件从 /tmp/dist 到部署目录
-              cp -r /tmp/dist/* "$DEPLOY_PATH"/
+              # 复制文件从源目录到部署目录
+              cp -r "$SOURCE_DIR"/* "$DEPLOY_PATH"/
               
               # 清理临时文件
-              rm -rf /tmp/dist
+              rm -rf /tmp/dist /tmp/docs 2>/dev/null || true
               
               # 设置文件权限（宝塔默认使用 www:www）
               chown -R www:www "$DEPLOY_PATH"
@@ -112,9 +128,9 @@ jobs:
               ls -la "$DEPLOY_PATH" | head -10
               echo "✅ Deployment completed!"
             else
-              echo "❌ Error: /tmp/dist directory not found!"
-              echo "Contents of /tmp:"
-              ls -la /tmp | grep -E "dist|ncu"
+              echo "❌ Error: Source directory not found!"
+              echo "Searching for index.html in /tmp:"
+              find /tmp -name "index.html" 2>/dev/null || echo "No index.html found"
               exit 1
             fi
 
