@@ -1,0 +1,40 @@
+name: Deploy to Tencent CloudBase
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy VitePress to CloudBase
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      
+      - name: Install dependencies
+        run: pnpm install
+      
+      - name: Build VitePress
+        run: pnpm docs:build
+      
+      - name: Deploy to Tencent CloudBase
+        uses: TencentCloudBase/cloudbase-action@v2.0.1
+        with:
+          secretId: ${{ secrets.CLOUDBASE_SECRET_ID }}
+          secretKey: ${{ secrets.CLOUDBASE_SECRET_KEY }}
+          envId: ${{ secrets.CLOUDBASE_ENV_ID }}
+
