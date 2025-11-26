@@ -53,8 +53,13 @@ jobs:
           tcb login --apiKeyId ${{ secrets.TCB_SECRET_ID }} --apiKey ${{ secrets.TCB_SECRET_KEY }}
       
       - name: Deploy to CloudBase Static Hosting
+        env:
+          TCB_DEPLOY_PATH: ${{ secrets.TCB_DEPLOY_PATH }}
         run: |
-          tcb hosting deploy ./docs/.vitepress/dist / -e ${{ secrets.TCB_ENV_ID }}
+          # 部署路径：可以通过 Secret 配置，默认为 /ncu-notes-sharing-wiki
+          DEPLOY_PATH=${TCB_DEPLOY_PATH:-/ncu-notes-sharing-wiki}
+          echo "Deploying to path: $DEPLOY_PATH"
+          tcb hosting deploy ./docs/.vitepress/dist $DEPLOY_PATH -e ${{ secrets.TCB_ENV_ID }}
       
       - name: Deployment success
         run: |
