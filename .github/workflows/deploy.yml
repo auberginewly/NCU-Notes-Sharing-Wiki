@@ -59,7 +59,7 @@ jobs:
         run: |
           SERVER_PORT="${{ secrets.SERVER_PORT }}"
           if [ -z "$SERVER_PORT" ]; then
-            SERVER_PORT="3333"
+            SERVER_PORT="22"
           fi
           echo "server_port=$SERVER_PORT" >> $GITHUB_OUTPUT
 
