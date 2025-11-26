@@ -16,7 +16,7 @@ const withBase = (path: string) => {
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   base: finalBase,
-  title: "NCU Notes Sharing Wiki 资料分享",
+  title: "NCU Notes Sharing Wiki",
   description: "By auberginewly 整理了一些我在 NCU 上课用到的教材、笔记和真题，希望能帮大家少走弯路。",
   head: [
     ['link', { rel: 'icon', href: withBase('i.png') }]
