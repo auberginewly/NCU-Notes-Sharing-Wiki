@@ -29,7 +29,21 @@ jobs:
         run: pnpm install
       
       - name: Build VitePress
-        run: pnpm docs:build
+        env:
+          TCB_DEPLOY_PATH: ${{ secrets.TCB_DEPLOY_PATH }}
+        run: |
+          # 设置 VitePress base 路径，与部署路径保持一致
+          DEPLOY_PATH=${TCB_DEPLOY_PATH:-/ncu-notes-sharing-wiki}
+          # 确保路径以 / 开头和结尾
+          if [[ ! "$DEPLOY_PATH" =~ ^/ ]]; then
+            DEPLOY_PATH="/$DEPLOY_PATH"
+          fi
+          if [[ ! "$DEPLOY_PATH" =~ /$ ]]; then
+            DEPLOY_PATH="$DEPLOY_PATH/"
+          fi
+          export VITEPRESS_BASE="$DEPLOY_PATH"
+          echo "Building with base path: $VITEPRESS_BASE"
+          pnpm docs:build
       
       - name: Verify build output
         run: |

@@ -1,18 +1,22 @@
 import { defineConfig } from 'vitepress'
 
+// 获取部署路径，默认为 /ncu-notes-sharing-wiki/
+const basePath = process.env.VITEPRESS_BASE || '/ncu-notes-sharing-wiki/'
+
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
+  base: basePath,
   title: "NCU Notes Sharing Wiki",
   description: "By auberginewly",
   head: [
-    ['link', { rel: 'icon', href: '/i.png' }]
+    ['link', { rel: 'icon', href: `${basePath}i.png` }]
   ],
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    logo: '/i.png',
+    logo: `${basePath}i.png`,
     nav: [
       { text: '主页', link: '/' },
-      { 
+      {
         text: '学习资源', 
         items: [
           { text: '应试资源', link: '/learning-resources/test' },
@@ -141,8 +145,8 @@ export default defineConfig({
             { text: 'AI润色提示词', link: '/contribution-guide/AI润色提示词' },
             { text: '获取帮助', link: '/contribution-guide/获取帮助' },
             // ... 其他页面
-          ]
-        }
+        ]
+      }
       ]
     },
 
