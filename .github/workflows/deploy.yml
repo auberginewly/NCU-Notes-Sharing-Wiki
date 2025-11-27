@@ -63,12 +63,24 @@ jobs:
           fi
           echo "server_port=$SERVER_PORT" >> $GITHUB_OUTPUT
 
-      - name: Compress build output
+      - name: Compress build output (optimized)
         run: |
           cd docs/.vitepress
-          tar -czf dist.tar.gz dist
-          echo "Compressed size: $(du -sh dist.tar.gz)"
-          ls -lh dist.tar.gz
+          # 使用 xz 压缩（压缩率更高，但需要先安装）
+          # 如果没有 xz，使用 gzip 的最高压缩级别
+          if command -v xz &> /dev/null; then
+            tar -cJf dist.tar.xz dist
+            echo "Compressed size (xz): $(du -sh dist.tar.xz)"
+            ls -lh dist.tar.xz
+            COMPRESSED_FILE="dist.tar.xz"
+          else
+            # 使用 gzip 最高压缩级别 (-9)
+            tar -czf dist.tar.gz dist --use-compress-program="gzip -9"
+            echo "Compressed size (gzip -9): $(du -sh dist.tar.gz)"
+            ls -lh dist.tar.gz
+            COMPRESSED_FILE="dist.tar.gz"
+          fi
+          echo "COMPRESSED_FILE=$COMPRESSED_FILE" >> $GITHUB_ENV
 
       - name: Setup SSH key
         run: |
@@ -83,14 +95,21 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
         run: |
-          echo "File size: $(du -sh docs/.vitepress/dist.tar.gz)"
+          COMPRESSED_FILE="${COMPRESSED_FILE:-dist.tar.gz}"
+          FILE_PATH="docs/.vitepress/$COMPRESSED_FILE"
+          
+          echo "File size: $(du -sh $FILE_PATH)"
           echo "Starting transfer at $(date)..."
           
-          # 使用 rsync 传输（更快，支持断点续传，显示进度）
-          rsync -avz --progress \
-              -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -p $SERVER_PORT -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3" \
-              docs/.vitepress/dist.tar.gz \
-              $SERVER_USER@$SERVER_HOST:/tmp/dist.tar.gz
+          # 使用 rsync 传输，添加带宽限制和超时设置
+          # -z: 压缩传输数据
+          # --partial: 支持断点续传
+          # --inplace: 直接覆盖，节省空间
+          rsync -avz --progress --partial --inplace \
+              --timeout=300 \
+              -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -p $SERVER_PORT -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes" \
+              $FILE_PATH \
+              $SERVER_USER@$SERVER_HOST:/tmp/$COMPRESSED_FILE
           
           echo "✅ Transfer completed at $(date)"
           
@@ -100,7 +119,7 @@ jobs:
               -o UserKnownHostsFile=~/.ssh/known_hosts \
               -p $SERVER_PORT \
               $SERVER_USER@$SERVER_HOST \
-              "ls -lh /tmp/dist.tar.gz && echo 'File exists on server'"
+              "ls -lh /tmp/$COMPRESSED_FILE && echo 'File exists on server'"
 
       - name: Extract and deploy files
         env:
@@ -115,14 +134,22 @@ jobs:
             DEPLOY_PATH="${SERVER_DEPLOY_PATH:-/www/wwwroot/ncu-notes-sharing-wiki}"
             echo "Deploy path: $DEPLOY_PATH"
             
-            # 检查压缩包是否存在
-            if [ ! -f "/tmp/dist.tar.gz" ]; then
-              echo "❌ Error: dist.tar.gz not found in /tmp"
+            # 检查压缩包是否存在（支持 .gz 和 .xz）
+            COMPRESSED_FILE=""
+            if [ -f "/tmp/dist.tar.xz" ]; then
+              COMPRESSED_FILE="/tmp/dist.tar.xz"
+              EXTRACT_CMD="tar -xJf"
+            elif [ -f "/tmp/dist.tar.gz" ]; then
+              COMPRESSED_FILE="/tmp/dist.tar.gz"
+              EXTRACT_CMD="tar -xzf"
+            else
+              echo "❌ Error: dist.tar.gz or dist.tar.xz not found in /tmp"
               ls -la /tmp | grep -E "dist|tar"
               exit 1
             fi
             
-            echo "Found dist.tar.gz, size: $(du -sh /tmp/dist.tar.gz)"
+            echo "Found compressed file: $COMPRESSED_FILE"
+            echo "Size: $(du -sh $COMPRESSED_FILE)"
             
             # 创建临时解压目录
             TEMP_DIR="/tmp/vitepress_deploy_$$"
@@ -130,7 +157,7 @@ jobs:
             
             # 解压文件
             echo "Extracting files..."
-            tar -xzf /tmp/dist.tar.gz -C "$TEMP_DIR"
+            $EXTRACT_CMD $COMPRESSED_FILE -C "$TEMP_DIR"
             
             # 检查解压结果
             if [ ! -d "$TEMP_DIR/dist" ]; then
@@ -153,7 +180,7 @@ jobs:
             cp -r "$TEMP_DIR/dist"/* "$DEPLOY_PATH"/
             
             # 清理临时文件
-            rm -rf "$TEMP_DIR" /tmp/dist.tar.gz
+            rm -rf "$TEMP_DIR" /tmp/dist.tar.gz /tmp/dist.tar.xz
             
             # 设置文件权限（宝塔默认使用 www:www）
             chown -R www:www "$DEPLOY_PATH"
