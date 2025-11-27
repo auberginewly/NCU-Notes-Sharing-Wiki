@@ -70,17 +70,30 @@ jobs:
           echo "Compressed size: $(du -sh dist.tar.gz)"
           ls -lh dist.tar.gz
 
-      - name: Deploy to server via SSH
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ steps.set-vars.outputs.server_port }}
-          source: "docs/.vitepress/dist.tar.gz"
-          target: /tmp
-          timeout: 600s
-          strip_components: 0
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to server via SSH (direct transfer)
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+        run: |
+          echo "Transferring compressed file to server..."
+          scp -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -P $SERVER_PORT \
+              -o ConnectTimeout=30 \
+              -o ServerAliveInterval=60 \
+              -o ServerAliveCountMax=3 \
+              docs/.vitepress/dist.tar.gz \
+              $SERVER_USER@$SERVER_HOST:/tmp/dist.tar.gz
+          echo "✅ File transfer completed"
 
       - name: Extract and deploy files
         env:
