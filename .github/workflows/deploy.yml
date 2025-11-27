@@ -77,23 +77,30 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Deploy to server via SSH (direct transfer)
+      - name: Deploy to server via SSH (with progress)
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
         run: |
-          echo "Transferring compressed file to server..."
-          scp -i ~/.ssh/deploy_key \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -P $SERVER_PORT \
-              -o ConnectTimeout=30 \
-              -o ServerAliveInterval=60 \
-              -o ServerAliveCountMax=3 \
+          echo "File size: $(du -sh docs/.vitepress/dist.tar.gz)"
+          echo "Starting transfer at $(date)..."
+          
+          # 使用 rsync 传输（更快，支持断点续传，显示进度）
+          rsync -avz --progress \
+              -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -p $SERVER_PORT -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3" \
               docs/.vitepress/dist.tar.gz \
               $SERVER_USER@$SERVER_HOST:/tmp/dist.tar.gz
-          echo "✅ File transfer completed"
+          
+          echo "✅ Transfer completed at $(date)"
+          
+          # 验证文件是否传输成功
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -p $SERVER_PORT \
+              $SERVER_USER@$SERVER_HOST \
+              "ls -lh /tmp/dist.tar.gz && echo 'File exists on server'"
 
       - name: Extract and deploy files
         env:
