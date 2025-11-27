@@ -1,0 +1,144 @@
+/* 下载文件链接样式 */
+/* 在链接后面添加文件类型标识，使其更明显 */
+
+/* PDF 文件 - 在链接后添加 "PDF" 标识 */
+.vp-doc a[href$=".pdf"]::after,
+main a[href$=".pdf"]::after,
+.content a[href$=".pdf"]::after {
+  content: " [PDF]";
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: #dc2626;
+  font-weight: 500;
+  background-color: #fee2e2;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* ZIP 压缩包 - 在链接后添加 "ZIP" 标识 */
+.vp-doc a[href$=".zip"]::after,
+main a[href$=".zip"]::after,
+.content a[href$=".zip"]::after {
+  content: " [ZIP]";
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: #2563eb;
+  font-weight: 500;
+  background-color: #dbeafe;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* Word 文档 - 在链接后添加 "DOC" 标识 */
+.vp-doc a[href$=".doc"]::after,
+.vp-doc a[href$=".docx"]::after,
+main a[href$=".doc"]::after,
+main a[href$=".docx"]::after,
+.content a[href$=".doc"]::after,
+.content a[href$=".docx"]::after {
+  content: " [DOC]";
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: #1d4ed8;
+  font-weight: 500;
+  background-color: #dbeafe;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* PowerPoint 演示文稿 - 在链接后添加 "PPT" 标识 */
+.vp-doc a[href$=".ppt"]::after,
+.vp-doc a[href$=".pptx"]::after,
+main a[href$=".ppt"]::after,
+main a[href$=".pptx"]::after,
+.content a[href$=".ppt"]::after,
+.content a[href$=".pptx"]::after {
+  content: " [PPT]";
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: #ea580c;
+  font-weight: 500;
+  background-color: #fed7aa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* Excel 表格 - 在链接后添加 "XLS" 标识 */
+.vp-doc a[href$=".xls"]::after,
+.vp-doc a[href$=".xlsx"]::after,
+main a[href$=".xls"]::after,
+main a[href$=".xlsx"]::after,
+.content a[href$=".xls"]::after,
+.content a[href$=".xlsx"]::after {
+  content: " [XLS]";
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: #16a34a;
+  font-weight: 500;
+  background-color: #dcfce7;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* 为带有 download 属性的链接添加下载标识 */
+.vp-doc a[download]::after,
+main a[download]::after,
+.content a[download]::after {
+  content: " [下载]";
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: #7c3aed;
+  font-weight: 500;
+  background-color: #ede9fe;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* 下载链接悬停效果 */
+.vp-doc a[href$=".pdf"]:hover,
+.vp-doc a[href$=".zip"]:hover,
+.vp-doc a[href$=".doc"]:hover,
+.vp-doc a[href$=".docx"]:hover,
+.vp-doc a[href$=".ppt"]:hover,
+.vp-doc a[href$=".pptx"]:hover,
+.vp-doc a[href$=".xls"]:hover,
+.vp-doc a[href$=".xlsx"]:hover,
+.vp-doc a[download]:hover,
+main a[href$=".pdf"]:hover,
+main a[href$=".zip"]:hover,
+main a[href$=".doc"]:hover,
+main a[href$=".docx"]:hover,
+main a[href$=".ppt"]:hover,
+main a[href$=".pptx"]:hover,
+main a[href$=".xls"]:hover,
+main a[href$=".xlsx"]:hover,
+main a[download]:hover {
+  text-decoration: underline;
+}
+
+/* 悬停时标识背景色加深 */
+.vp-doc a[href$=".pdf"]:hover::after,
+.vp-doc a[href$=".zip"]:hover::after,
+.vp-doc a[href$=".doc"]:hover::after,
+.vp-doc a[href$=".docx"]:hover::after,
+.vp-doc a[href$=".ppt"]:hover::after,
+.vp-doc a[href$=".pptx"]:hover::after,
+.vp-doc a[href$=".xls"]:hover::after,
+.vp-doc a[href$=".xlsx"]:hover::after,
+main a[href$=".pdf"]:hover::after,
+main a[href$=".zip"]:hover::after,
+main a[href$=".doc"]:hover::after,
+main a[href$=".docx"]:hover::after,
+main a[href$=".ppt"]:hover::after,
+main a[href$=".pptx"]:hover::after,
+main a[href$=".xls"]:hover::after,
+main a[href$=".xlsx"]:hover::after {
+  opacity: 0.9;
+}
+
