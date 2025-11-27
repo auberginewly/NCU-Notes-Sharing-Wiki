@@ -23,7 +23,7 @@ export default defineConfig({
   ],
   // 配置 Vite 以正确处理静态资源
   vite: {
-    publicDir: 'docs/public',
+    publicDir: 'public',
     build: {
       // 确保静态资源被正确复制
       assetsInlineLimit: 0,
