@@ -130,7 +130,7 @@ export default defineConfig({
           text: '大三',
           collapsed: true,
           items: [
-            { text: 'TODO', link: '/learning-resources/test/3/' },
+            { text: '数据库原理', link: '/learning-resources/test/3/数据库原理' },
             // ... 其他应试相关的页面
           ]
         },
