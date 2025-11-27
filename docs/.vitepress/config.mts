@@ -21,6 +21,30 @@ export default defineConfig({
   head: [
     ['link', { rel: 'icon', href: withBase('i.png') }]
   ],
+  // 配置 Vite 以正确处理静态资源
+  vite: {
+    publicDir: 'docs/public',
+    build: {
+      // 确保静态资源被正确复制
+      assetsInlineLimit: 0,
+      rollupOptions: {
+        output: {
+          // 保持资源文件的原始路径结构
+          assetFileNames: (assetInfo) => {
+            // 保持 PDF、ZIP 等文件的原始路径
+            if (assetInfo.name) {
+              const ext = assetInfo.name.split('.').pop()
+              if (ext && ['pdf', 'zip', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) {
+                // 保持原始路径结构
+                return assetInfo.name
+              }
+            }
+            return 'assets/[name]-[hash][extname]'
+          }
+        }
+      }
+    }
+  },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     logo: withBase('i.png'),
