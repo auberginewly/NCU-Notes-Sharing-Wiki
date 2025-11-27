@@ -63,24 +63,13 @@ jobs:
           fi
           echo "server_port=$SERVER_PORT" >> $GITHUB_OUTPUT
 
-      - name: Compress build output (optimized)
+      - name: Analyze build output
         run: |
-          cd docs/.vitepress
-          # 使用 xz 压缩（压缩率更高，但需要先安装）
-          # 如果没有 xz，使用 gzip 的最高压缩级别
-          if command -v xz &> /dev/null; then
-            tar -cJf dist.tar.xz dist
-            echo "Compressed size (xz): $(du -sh dist.tar.xz)"
-            ls -lh dist.tar.xz
-            COMPRESSED_FILE="dist.tar.xz"
-          else
-            # 使用 gzip 最高压缩级别 (-9)
-            tar -czf dist.tar.gz dist --use-compress-program="gzip -9"
-            echo "Compressed size (gzip -9): $(du -sh dist.tar.gz)"
-            ls -lh dist.tar.gz
-            COMPRESSED_FILE="dist.tar.gz"
-          fi
-          echo "COMPRESSED_FILE=$COMPRESSED_FILE" >> $GITHUB_ENV
+          echo "Build output analysis:"
+          echo "Total files: $(find docs/.vitepress/dist -type f | wc -l)"
+          echo "Total size: $(du -sh docs/.vitepress/dist | cut -f1)"
+          echo "Largest files:"
+          find docs/.vitepress/dist -type f -exec ls -lh {} \; | sort -k5 -hr | head -10
 
       - name: Setup SSH key
         run: |
@@ -89,41 +78,84 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Deploy to server via SSH (with progress)
+      - name: Test network speed
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
         run: |
-          COMPRESSED_FILE="${COMPRESSED_FILE:-dist.tar.gz}"
-          FILE_PATH="docs/.vitepress/$COMPRESSED_FILE"
+          echo "Testing network connection to server..."
+          time ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -p $SERVER_PORT \
+              -o ConnectTimeout=10 \
+              $SERVER_USER@$SERVER_HOST \
+              "echo 'Connection test successful'"
           
-          echo "File size: $(du -sh $FILE_PATH)"
-          echo "Starting transfer at $(date)..."
-          
-          # 使用 rsync 传输，添加带宽限制和超时设置
-          # -z: 压缩传输数据
-          # --partial: 支持断点续传
-          # --inplace: 直接覆盖，节省空间
-          rsync -avz --progress --partial --inplace \
-              --timeout=300 \
-              -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -p $SERVER_PORT -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes" \
-              $FILE_PATH \
-              $SERVER_USER@$SERVER_HOST:/tmp/$COMPRESSED_FILE
-          
-          echo "✅ Transfer completed at $(date)"
-          
-          # 验证文件是否传输成功
+          echo "Testing server location and network..."
           ssh -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
               -p $SERVER_PORT \
               $SERVER_USER@$SERVER_HOST \
-              "ls -lh /tmp/$COMPRESSED_FILE && echo 'File exists on server'"
+              "curl -s ifconfig.me && echo '' && ping -c 3 8.8.8.8 | tail -1" || echo "Network test failed"
 
-      - name: Extract and deploy files
+      - name: Incremental deploy to server (only changed files)
         env:
-          SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || 22 }}
+          SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH || '/www/wwwroot/ncu-notes-sharing-wiki' }}
+        run: |
+          echo "Starting incremental deployment at $(date)..."
+          echo "Source: docs/.vitepress/dist"
+          echo "Target: $SERVER_DEPLOY_PATH"
+          
+          # 统计要传输的文件
+          echo "Analyzing files to transfer..."
+          FILE_COUNT=$(find docs/.vitepress/dist -type f | wc -l)
+          TOTAL_SIZE=$(du -sh docs/.vitepress/dist | cut -f1)
+          echo "Total files: $FILE_COUNT, Total size: $TOTAL_SIZE"
+          
+          # 使用 rsync 进行增量同步
+          # --delete: 删除目标目录中源目录不存在的文件
+          # --delete-excluded: 删除被排除的文件
+          # --checksum: 使用校验和而不是时间戳来判断文件是否变更（更准确）
+          # --ignore-times: 即使时间戳相同也传输（配合 checksum 使用）
+          # --progress: 显示传输进度
+          # --human-readable: 人类可读的文件大小
+          rsync -avz --progress --delete \
+              --checksum \
+              --timeout=600 \
+              --bwlimit=0 \
+              -e "ssh -i ~/.ssh/deploy_key \
+                  -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=~/.ssh/known_hosts \
+                  -p $SERVER_PORT \
+                  -o ConnectTimeout=30 \
+                  -o Compression=yes \
+                  -o Cipher=aes128-gcm@openssh.com \
+                  -o MACs=umac-128-etm@openssh.com \
+                  -o ServerAliveInterval=15 \
+                  -o ServerAliveCountMax=10 \
+                  -o TCPKeepAlive=yes" \
+              docs/.vitepress/dist/ \
+              $SERVER_USER@$SERVER_HOST:$SERVER_DEPLOY_PATH/
+          
+          echo "✅ Incremental deployment completed at $(date)"
+          
+          # 验证部署结果
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -p $SERVER_PORT \
+              $SERVER_USER@$SERVER_HOST \
+              "echo 'Deployed files:' && ls -lh $SERVER_DEPLOY_PATH | head -10 && echo '...' && echo 'Total files:' && find $SERVER_DEPLOY_PATH -type f | wc -l"
+
+      - name: Set file permissions
+        env:
+          SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH || '/www/wwwroot/ncu-notes-sharing-wiki' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -132,61 +164,15 @@ jobs:
           port: ${{ steps.set-vars.outputs.server_port }}
           script: |
             DEPLOY_PATH="${SERVER_DEPLOY_PATH:-/www/wwwroot/ncu-notes-sharing-wiki}"
-            echo "Deploy path: $DEPLOY_PATH"
-            
-            # 检查压缩包是否存在（支持 .gz 和 .xz）
-            COMPRESSED_FILE=""
-            if [ -f "/tmp/dist.tar.xz" ]; then
-              COMPRESSED_FILE="/tmp/dist.tar.xz"
-              EXTRACT_CMD="tar -xJf"
-            elif [ -f "/tmp/dist.tar.gz" ]; then
-              COMPRESSED_FILE="/tmp/dist.tar.gz"
-              EXTRACT_CMD="tar -xzf"
-            else
-              echo "❌ Error: dist.tar.gz or dist.tar.xz not found in /tmp"
-              ls -la /tmp | grep -E "dist|tar"
-              exit 1
-            fi
-            
-            echo "Found compressed file: $COMPRESSED_FILE"
-            echo "Size: $(du -sh $COMPRESSED_FILE)"
-            
-            # 创建临时解压目录
-            TEMP_DIR="/tmp/vitepress_deploy_$$"
-            mkdir -p "$TEMP_DIR"
-            
-            # 解压文件
-            echo "Extracting files..."
-            $EXTRACT_CMD $COMPRESSED_FILE -C "$TEMP_DIR"
-            
-            # 检查解压结果
-            if [ ! -d "$TEMP_DIR/dist" ]; then
-              echo "❌ Error: dist directory not found after extraction"
-              ls -la "$TEMP_DIR"
-              exit 1
-            fi
-            
-            echo "Extraction successful. Files in dist:"
-            ls -la "$TEMP_DIR/dist" | head -10
-            
-            # 创建部署目录（如果不存在）
-            mkdir -p "$DEPLOY_PATH"
-            
-            # 清空部署目录（保留隐藏文件）
-            find "$DEPLOY_PATH" -mindepth 1 -maxdepth 1 ! -name '.*' -exec rm -rf {} +
-            
-            # 复制文件从解压目录到部署目录
-            echo "Copying files to deploy directory..."
-            cp -r "$TEMP_DIR/dist"/* "$DEPLOY_PATH"/
-            
-            # 清理临时文件
-            rm -rf "$TEMP_DIR" /tmp/dist.tar.gz /tmp/dist.tar.xz
             
             # 设置文件权限（宝塔默认使用 www:www）
+            echo "Setting file permissions..."
             chown -R www:www "$DEPLOY_PATH"
-            chmod -R 755 "$DEPLOY_PATH"
+            find "$DEPLOY_PATH" -type d -exec chmod 755 {} \;
+            find "$DEPLOY_PATH" -type f -exec chmod 644 {} \;
             
-            echo "Files in deploy directory:"
-            ls -la "$DEPLOY_PATH" | head -10
-            echo "✅ Deployment completed!"
+            echo "✅ Permissions set successfully!"
+            echo "Deployment summary:"
+            echo "  Total files: $(find $DEPLOY_PATH -type f | wc -l)"
+            echo "  Total size: $(du -sh $DEPLOY_PATH | cut -f1)"
 
